@@ -1,0 +1,52 @@
+body {
+	margin: 20px 20px 20px 20px !important;
+}
+div.block{
+  overflow: hidden;
+}
+div.block label{
+  width: 160px;
+  display: block;
+  float: left;
+  text-align: left;
+}
+div.block .input{
+  margin-left: 4px;
+  float: left;
+}
+#inputApiKey{
+	width: 500px;
+}
+#inputSecretKey{
+	width: 315px;
+}
+.schemaTable{
+	padding-top: 20px;
+	padding-left: 50px;
+}
+.schemaTable .colHeader{
+	width: 150px;
+	display: block;
+	float: left;
+	text-align: left;
+	background-color: #6AACDB;
+	color: #FFFFFF;
+	font-weight: 700;
+	font-family: Arial;
+	padding:5px;
+}
+.schemaTable .tableHeader{
+	background-color: #6AACDB;
+}
+.requiredField{
+	color:red;font-weight:bold;
+}
+#credentialsForm > div {
+	padding:3px;
+}
+#schemaTables{
+	display:none;
+}
+.schemaTableContainer{
+	width: 700px;
+}

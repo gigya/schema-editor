@@ -1,0 +1,228 @@
+<html>
+<head>
+  <link href="style_view.css" rel="stylesheet" type="text/css">
+  <link href="gigya.css" rel="stylesheet" type="text/css">
+  <title>Gigya Schema Viewer</title>
+  <script type='text/javascript' src='https://ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js'></script>
+  <!-- Support for JSON.stringify in older IE -->
+  <script src="json2.js"></script>
+  <script type='text/javascript'>
+    var getSchema = function(){
+      // hide the tables
+      $('#schemaTables').hide();
+
+      // build the params to be sent to the API call
+      var dataObj = { apiKey: $('#inputApiKey').val(), secret: $('#inputSecretKey').val(), format: 'jsonp', includeDynamicSchema: $('#dynamicSchema').is(':checked') };
+
+      // get the current schema
+      var apiURL = "https://accounts.gigya.com/accounts.getSchema";
+      $.ajax({
+        type: "GET",
+        url: apiURL,
+        dataType: 'jsonp',
+        data: dataObj,
+        success: processGetSchema
+      });
+    }
+
+    // utility function to generate the rows/formatting of the schema tables
+    var generateRow = function(fieldName,fieldObj){
+      var tableRow = "<tr class='template_row' data-lang='EN'>" +
+                            "<td class='col_template'><span><input type='text' value='"+fieldName+"' style='width:200px;'></input></span></td>" +
+                            "<td class='col_template'><span>"+((fieldObj.type === undefined) ? '' : fieldObj.type)+"</span></td>" +
+                            "<td class='col_template'><span>"+((fieldObj.writeAccess === undefined) ? '' : fieldObj.writeAccess)+"</span></td>" +
+                            "<td class='col_template'><span>"+((fieldObj.required) ? '<center><span class=requiredField>*</style></center>' : '')+"</span></td>" +
+                            "<td class='col_template'><span>"+((fieldObj.format === undefined) ? '' : fieldObj.format)+"</span></td>" +
+                            "<td class='col_template'><span>"+((fieldObj.hash === undefined) ? '' : fieldObj.hash)+"</span></td>" +
+                            "<td class='col_template'><span>"+((fieldObj.encrypt === undefined) ? '' : fieldObj.encrypt)+"</span></td>" +
+                         "</tr>";
+      return tableRow;
+    }
+    
+    // callback function to process results of getSchema
+    var processGetSchema = function(response){
+      // if we successfully received the current schema
+      if (response.errorCode == 0){
+        // clear out the placeholder row and any existing data
+        $('#profileTemplateRowsHolder').empty();
+        $.each(response.profileSchema.fields,function(index,value){
+          var tableRow = generateRow(index,value);
+          $('#profileTemplateRowsHolder').append(tableRow);
+        });
+
+        // clear out the placeholder row and any existing data
+        $('#dataTemplateRowsHolder').empty();
+        $.each(response.dataSchema.fields,function(index,value){
+          var tableRow = generateRow(index,value);
+          $('#dataTemplateRowsHolder').append(tableRow);
+        
+        });
+        // show the tables
+        $('#schemaTables').show();
+      } else {
+        alert('Error calling getSchema:\n\n' + JSON.stringify(response));
+      }  
+    }
+  </script>
+</head>
+<body>
+   <!-- Form used to get schema based on API/secret -->
+  <table cellpadding="5">
+    <tr>
+      <td>
+         <h4>API Key</h4>
+      </td>
+      <td>
+         <input class="input" type="text" id="inputApiKey" value=""/>
+     </td>
+    </tr>
+    <tr>
+      <td>
+         <h4>Secret Key</h4>
+      </td>
+      <td>
+         <input class="input" type="text" id="inputSecretKey" value=""/>
+     </td>
+    </tr>
+    <tr>
+      <td>
+         <h4>Include Dynamic Schema?</h4>
+      </td>
+      <td>
+         <input type="checkbox" id="dynamicSchema" />
+     </td>
+    </tr>
+    <tr>
+      <td colspan='2'>
+         <button onClick="javascript:getSchema();">Get Schema</button>
+      </td>
+    </tr>
+  </table>
+  
+  <br><br>
+
+  <div id="schemaTables">
+    <!--The actual schema table on platform should have it's own CSS classes -->
+    <div class="email_templates">
+      <!-- Profile Table -->
+      <h4>Profile Schema</h4>
+      <br>
+      <div class="email_templates_holder schemaTableContainer">
+        <table cellpadding="0" cellspacing="0" class="table_blue_no_scroll">
+          <thead>
+              <tr>
+                  <th class="round_left_top col_default">
+                      Field
+                  </th>
+                  <th class="col_template">
+                      Type
+                  </th>
+                  <th class="col_language">
+                      Write Access
+                  </th>
+                  <th class="col_language">
+                      Required
+                  </th>
+                  <th class="col_language">
+                      Format
+                  </th>
+                  <th class="col_language">
+                      Hash
+                  </th>
+                  <th class="round_right_top col_delete">
+                      Encrypt
+                  </th>
+              </tr>
+          </thead>
+          <tbody id="profileTemplateRowsHolder">
+            <tr class="template_row" data-lang="EN">
+              <td class="col_template">
+                  <span></span>
+              </td>
+              <td class="col_template">
+                  <span></span>
+              </td>
+              <td class="col_template">
+                  <span></span>
+              </td>
+              <td class="col_template">
+                  <span></span>
+              </td>
+              <td class="col_template">
+                  <span></span>
+              </td>
+              <td class="col_template">
+                  <span></span>
+              </td>
+              <td class="col_delete last">
+                  <span></span>
+              </td>                                       
+          </tr>
+        </tbody>
+        </table>
+      </div>
+      
+      <br>
+      <br>
+
+      <!-- Data Table -->
+      <h4>Data Schema</h4>
+      <br>
+      <div class="email_templates_holder schemaTableContainer">
+        <table cellpadding="0" cellspacing="0" class="table_blue_no_scroll">
+          <thead>
+              <tr>
+                  <th class="round_left_top col_default">
+                      Field
+                  </th>
+                  <th class="col_template">
+                      Type
+                  </th>
+                  <th class="col_language">
+                      Write Access
+                  </th>
+                  <th class="col_language">
+                      Required
+                  </th>
+                  <th class="col_language">
+                      Format
+                  </th>
+                  <th class="col_language">
+                      Hash
+                  </th>
+                  <th class="round_right_top col_delete">
+                      Encrypt
+                  </th>
+              </tr>
+          </thead>
+          <tbody id="dataTemplateRowsHolder">
+            <tr class="template_row" data-lang="EN">
+              <td class="col_template">
+                  <span></span>
+              </td>
+              <td class="col_template">
+                  <span></span>
+              </td>
+              <td class="col_template">
+                  <span></span>
+              </td>
+              <td class="col_template">
+                  <span></span>
+              </td>
+              <td class="col_template">
+                  <span></span>
+              </td>
+              <td class="col_template">
+                  <span></span>
+              </td>
+              <td class="col_delete last">
+                  <span></span>
+              </td>                                       
+          </tr>
+        </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

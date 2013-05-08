@@ -45,18 +45,22 @@
       if (response.errorCode == 0){
         // clear out the placeholder row and any existing data
         $('#profileTemplateRowsHolder').empty();
-        $.each(response.profileSchema.fields,function(index,value){
-          var tableRow = generateRow(index,value);
-          $('#profileTemplateRowsHolder').append(tableRow);
-        });
+        if (response.profileSchema.fields !== undefined){
+	        $.each(response.profileSchema.fields,function(index,value){
+	          var tableRow = generateRow(index,value);
+	          $('#profileTemplateRowsHolder').append(tableRow);
+	        });
+        }
 
         // clear out the placeholder row and any existing data
         $('#dataTemplateRowsHolder').empty();
-        $.each(response.dataSchema.fields,function(index,value){
-          var tableRow = generateRow(index,value);
-          $('#dataTemplateRowsHolder').append(tableRow);
-        
-        });
+        if (response.dataSchema.fields !== undefined){
+	        $.each(response.dataSchema.fields,function(index,value){
+	          var tableRow = generateRow(index,value);
+	          $('#dataTemplateRowsHolder').append(tableRow);
+	        
+	        });
+        }
         // show the tables
         $('#schemaTables').show();
       } else {

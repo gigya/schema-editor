@@ -14,6 +14,10 @@ div.block .input{
   margin-left: 4px;
   float: left;
 }
+#dsTooltip{
+	text-decoration: underline;
+	cursor: pointer;
+}
 #inputApiKey{
 	width: 500px;
 }
@@ -44,7 +48,7 @@ div.block .input{
 #credentialsForm > div {
 	padding:3px;
 }
-#schemaTables{
+#profileSchemaTables, #dsSchemaTables {
 	display:none;
 	padding-bottom: 100px;
 }

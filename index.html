@@ -1,0 +1,655 @@
+<html>
+<head>
+	<link href="style_edit.css" rel="stylesheet" type="text/css">
+	<link href="gigya.css" rel="stylesheet" type="text/css">
+	<title>Gigya Schema Editor</title>
+	<script type='text/javascript' src='https://ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js'></script>
+	<!-- Support for JSON.stringify in older IE -->
+	<script src="json2.js"></script>
+	<script type='text/javascript'>
+		$(function(){
+		// This should be loaded over HTTPS since we're submitting a secret key.
+		// Ideally the 301 redirect is handled by the web server. This should just be a safeguard.
+		if (window.location.protocol != "https:") {
+			window.location.href = "https:" + window.location.href.substring(window.location.protocol.length);
+		}
+	});
+		
+		var getSchema = function(){
+			// used to uniquely identify each row to be saved
+			window.numProfileSchemaRows = 0;
+			window.numDataSchemaRows = 0;
+			window.numDSSchemaRows = 0;
+			window.removedProfileFields = Array();
+			window.removedDataFields = Array();
+			window.removedDSFields = Array();
+
+			// hide the tables
+			$('#profileSchemaTables').hide();
+			$('#dsSchemaTables').hide();
+
+			// build the params to be sent to the API call
+			var dataObj = { apiMethod: 'accounts.getSchema', dataCenter: $('#dataCenter').val(), apiKey: $('#inputApiKey').val(), secret: $('#inputSecretKey').val(), format: 'json', filter: 'explicitOnly' };
+
+			// if we're managing a DS schema
+			if ($('#inputDSType').val() != ""){
+				dataObj.apiMethod = 'ds.getSchema';
+				dataObj.type = $('#inputDSType').val();
+			}
+
+			// get the current schema
+			$.ajax({
+				type: "POST",
+				url: 'requestProxy.php',
+				dataType: 'json',
+				data: dataObj,
+				success: processGetSchema
+			});
+		}
+
+		// utility function to generate the rows/formatting of the schema tables
+		var generateRow = function(fieldName,fieldObj,schemaType){
+			// based on profile object documented parameters. should be kept up to date
+			var dataTypes = ['','integer','float','boolean','string','text','date','long'];
+			var writeAccessModes = ['clientModify','serverOnly','clientCreate'];
+			var hashes = ['','sha1'];
+			var encryptions = ['','AES'];
+			
+			// get the count for the rows based on the type of schema
+			if (schemaType == 'profile'){
+				numSchemaRows = numProfileSchemaRows;
+			} else if (schemaType == 'data') {
+				numSchemaRows = numDataSchemaRows;
+			} else if (schemaType == 'ds') {
+				numSchemaRows = numDSSchemaRows;
+			}
+			
+			var tableRow = "<tr class='template_row schemaRow' data-lang='EN'>" +
+			"<td class='col_template'><span><input type='text' id='"+schemaType+"SchemaInput["+numSchemaRows+"][name]' data-property='name' data-schemaRow='"+schemaType+"["+numSchemaRows+"]' value='"+fieldName+"'></input></span></td>" +
+
+														// data types
+														"<td class='col_template'><span>"+
+														"<select id='"+schemaType+"SchemaInput["+numSchemaRows+"][type]' data-property='type' data-schemaRow='"+schemaType+"["+numSchemaRows+"]'>";
+														$.each(dataTypes, function(index,value){
+															tableRow += "<option value='"+value+"'"; if ((value == '' && fieldObj.type === undefined) || (fieldObj.type == value)){ tableRow += ' selected'; } tableRow += ">"+value+"</option>";
+														});
+														tableRow += "</select>" +
+														"</span></td>" +
+														
+														// write access modes
+														"<td class='col_template'><span>" +
+														"<select id='"+schemaType+"SchemaInput["+numSchemaRows+"][writeAccess]' data-property='writeAccess' data-schemaRow='"+schemaType+"["+numSchemaRows+"]'>";
+														$.each(writeAccessModes, function(index,value){
+															tableRow += "<option value='"+value+"'"; if ((value == '' && fieldObj.writeAccess === undefined) || (fieldObj.writeAccess == value)){ tableRow += ' selected'; } tableRow += ">"+value+"</option>";
+														});
+														tableRow += "</select>" +
+														"</span></td>" +
+														
+														// required
+														"<td class='col_template'><span><center><input type='checkbox' id='"+schemaType+"SchemaInput["+numSchemaRows+"][required]' data-property='required' data-schemaRow='"+schemaType+"["+numSchemaRows+"]'";
+														if (fieldObj.required){ tableRow += " checked"; } 
+														if (schemaType == 'ds') { tableRow += " disabled"; }
+														tableRow += "/></center></span></td>" +
+														
+														// format
+														"<td class='col_template'><span><input type='text' id='"+schemaType+"SchemaInput["+numSchemaRows+"][format]' data-property='format' data-schemaRow='"+schemaType+"["+numSchemaRows+"]' value='" + ((fieldObj.format === undefined) ? '' : htmlEscape(fieldObj.format)) + "'></input></span></td>" +
+														
+														// hashes
+														"<td class='col_template'><span>" +
+														"<select id='"+schemaType+"SchemaInput["+numSchemaRows+"][hash]' data-property='hash' data-schemaRow='"+schemaType+"["+numSchemaRows+"]'";
+														if (schemaType == 'ds') { tableRow += " disabled"; }
+														tableRow += ">";
+														$.each(hashes, function(index,value){
+															tableRow += "<option value='"+value+"'"; if ((value == '' && fieldObj.hash === undefined) || (fieldObj.hash == value)){ tableRow += ' selected'; } tableRow += ">"+value+"</option>";
+														});
+														tableRow += "</select>" +
+														"</span></td>" +
+														
+														// encryptions
+														"<td class='col_template'><span>" +
+														"<select id='"+schemaType+"SchemaInput["+numSchemaRows+"][encrypt]' data-property='encrypt' data-schemaRow='"+schemaType+"["+numSchemaRows+"]'>";
+														$.each(encryptions, function(index,value){
+															tableRow += "<option value='"+value+"'"; if ((value == '' && fieldObj.encrypt === undefined) || (fieldObj.encrypt == value)){ tableRow += ' selected'; } tableRow += ">"+value+"</option>";
+														});
+														tableRow += "</select>" +
+														"</span></td>" +
+														
+														// remove button
+														"<td class='col_template'><span><center>" +
+														"<button onClick=\"javascript:removeSchemaRow(this,'"+schemaType+"');\">-</button>" +
+														"</center></span></td>" +
+														"</tr>";
+
+			// increment the count for the rows based on the type of schema
+			if (schemaType == 'profile'){
+				numProfileSchemaRows++;
+			} else if (schemaType == 'data') {
+				numDataSchemaRows++;
+			} else if (schemaType == 'ds') {
+				numDSSchemaRows++;
+			}
+			
+			return tableRow;
+		}
+		
+		// callback function to process results of getSchema
+		var processGetSchema = function(response){
+			// if we successfully received the current schema
+			if (response.errorCode == 0){
+				// clear out the placeholder row and any existing data
+				$('#profileTemplateRowsHolder').empty();
+				if (response.profileSchema !== undefined && response.profileSchema.fields !== undefined){
+					$.each(response.profileSchema.fields,function(index,value){
+						var tableRow = generateRow(index,value,'profile');
+						$('#profileTemplateRowsHolder').append(tableRow);
+					});
+				}
+				
+				// clear out the placeholder row and any existing data
+				$('#dataTemplateRowsHolder').empty();
+				if (response.dataSchema != undefined && response.dataSchema.fields !== undefined){
+					$.each(response.dataSchema.fields,function(index,value){
+						var tableRow = generateRow(index,value,'data');
+						$('#dataTemplateRowsHolder').append(tableRow);
+					});
+				}
+
+				// for DS schemas:
+				// clear out the placeholder row and any existing data
+				$('#dsTemplateRowsHolder').empty();
+				if (response.schema != undefined && response.schema.fields !== undefined){
+					$.each(response.schema.fields,function(index,value){
+						var tableRow = generateRow(index,value,'ds');
+						$('#dsTemplateRowsHolder').append(tableRow);
+					});
+				}
+
+				// show the relevant tables
+				if (response.profileSchema !== undefined){
+					$('#profileSchemaTables').show();
+				} else {
+					$('#dsSchemaTables').show();
+				}
+			} else {
+				alert('Error calling getSchema:\n\n' + JSON.stringify(response));
+			}  
+		}
+		
+		// add a row to the given table body
+		var addSchemaRow = function(tableBody,schemaType){
+			var tableRow = generateRow('','',schemaType);
+			$(tableBody).append(tableRow);
+		}
+		
+		// remove a row based on which remove button was clicked
+		var removeSchemaRow = function(removeButton,schemaType){
+			// keep track of what's been removed since it has to be passed as a null value to setSchema
+			var removedField = $(removeButton).closest('tr.schemaRow').find("[data-property='name']").val();
+			if (schemaType == 'profile'){
+				removedProfileFields.push(removedField);
+			} else if (schemaType == 'data'){
+				removedDataFields.push(removedField);
+			} else if (schemaType == 'ds'){
+				removedDSFields.push(removedField);
+			}
+
+			$(removeButton).closest('tr.schemaRow').remove();
+		}
+		
+		var saveSchema = function(schemaType){
+			var dataObj;
+			if (schemaType == 'accounts') {
+				var profileSchema = {};
+				var dataSchema = {}
+				profileSchema.fields = {};
+				dataSchema.fields = {};
+				
+				// for every profile schema row
+				for (var i=0;i<numProfileSchemaRows;i++){
+					var name = $("[data-schemaRow='profile["+i+"]'][data-property='name']").val();
+					var type = $("[data-schemaRow='profile["+i+"]'][data-property='type']").val();
+					var writeAccess = $("[data-schemaRow='profile["+i+"]'][data-property='writeAccess']").val();
+					var required = $("[data-schemaRow='profile["+i+"]'][data-property='required']").is(':checked');
+					var format = $("[data-schemaRow='profile["+i+"]'][data-property='format']").val();
+					var hash = $("[data-schemaRow='profile["+i+"]'][data-property='hash']").val();
+					var encrypt = $("[data-schemaRow='profile["+i+"]'][data-property='encrypt']").val();
+					
+					if (name != undefined && name != ''){
+						// construct the object to hold this schema field
+						profileSchema.fields[name] = {};
+						
+						// add the properties to the schema field object
+						if (type != undefined && type != ''){
+								// do not include the profile type in the request as it can't be saved in setSchema calls
+					//profileSchema.fields[name].type = type;
+				}
+				if (writeAccess != undefined && writeAccess != ''){
+					profileSchema.fields[name].writeAccess = writeAccess;
+				}
+						// required is going to be a boolean value
+						profileSchema.fields[name].required = required;
+						if (format != undefined && format != ''){
+							profileSchema.fields[name].format = format;
+						}
+						if (hash != undefined && hash != ''){
+							profileSchema.fields[name].hash = hash;
+						}
+						if (encrypt != undefined && encrypt != ''){
+							profileSchema.fields[name].encrypt = encrypt;
+						}
+					}
+				}
+				
+				// for every profile field that has been marked as removed by the user
+				for (var i=0;i<removedProfileFields.length;i++){
+					// if it hasn't been added back by the user
+					if (profileSchema.fields[removedProfileFields[i]] === undefined){
+					// pass it to the setSchema call as 'null' to remove it
+					profileSchema.fields[removedProfileFields[i]] = null;
+				}
+			}
+
+				// for every data schema row
+				for (var i=0;i<numDataSchemaRows;i++){
+					var name = $("[data-schemaRow='data["+i+"]'][data-property='name']").val();
+					var type = $("[data-schemaRow='data["+i+"]'][data-property='type']").val();
+					var writeAccess = $("[data-schemaRow='data["+i+"]'][data-property='writeAccess']").val();
+					var required = $("[data-schemaRow='data["+i+"]'][data-property='required']").is(':checked');
+					var format = $("[data-schemaRow='data["+i+"]'][data-property='format']").val();
+					var hash = $("[data-schemaRow='data["+i+"]'][data-property='hash']").val();
+					var encrypt = $("[data-schemaRow='data["+i+"]'][data-property='encrypt']").val();
+					
+					if (name != undefined && name != ''){
+						// construct the object to hold this schema field
+						dataSchema.fields[name] = {};
+						
+						// add the properties to the schema field object
+						if (type != undefined && type != ''){
+							dataSchema.fields[name].type = type;
+						}
+						if (writeAccess != undefined && writeAccess != ''){
+							dataSchema.fields[name].writeAccess = writeAccess;
+						}
+						// required is going to be a boolean value
+						dataSchema.fields[name].required = required;
+						if (format != undefined && format != ''){
+							dataSchema.fields[name].format = format;
+						}
+						if (hash != undefined && hash != ''){
+							dataSchema.fields[name].hash = hash;
+						}
+						if (encrypt != undefined && encrypt != ''){
+							dataSchema.fields[name].encrypt = encrypt;
+						}
+					}
+				}
+				
+				// for every profile field that has been marked as removed by the user
+				for (var i=0;i<removedDataFields.length;i++){
+					// if it hasn't been added back by the user
+					if (dataSchema.fields[removedDataFields[i]] === undefined){
+					// pass it to the setSchema call as 'null' to remove it
+					dataSchema.fields[removedDataFields[i]] = null;
+				}
+			}
+
+				// used to pass data to the setSchema API call (not related to the 'data' schema object)
+				dataObj = { apiMethod: 'accounts.setSchema', dataCenter: $('#dataCenter').val(), apiKey: $('#inputApiKey').val(), secret: $('#inputSecretKey').val(), format: 'json', dataSchema: JSON.stringify(dataSchema), profileSchema: JSON.stringify(profileSchema) };
+		
+		} else if (schemaType == 'ds'){
+				var dataSchema = {}
+				dataSchema.fields = {};
+
+				// for every data schema row
+				for (var i=0;i<numDSSchemaRows;i++){
+					var name = $("[data-schemaRow='ds["+i+"]'][data-property='name']").val();
+					var type = $("[data-schemaRow='ds["+i+"]'][data-property='type']").val();
+					var writeAccess = $("[data-schemaRow='ds["+i+"]'][data-property='writeAccess']").val();
+					// ds doesn't support the required property
+					//var required = $("[data-schemaRow='ds["+i+"]'][data-property='required']").is(':checked');
+					var format = $("[data-schemaRow='ds["+i+"]'][data-property='format']").val();
+					var hash = $("[data-schemaRow='ds["+i+"]'][data-property='hash']").val();
+					var encrypt = $("[data-schemaRow='ds["+i+"]'][data-property='encrypt']").val();
+					
+					if (name != undefined && name != ''){
+						// construct the object to hold this schema field
+						dataSchema.fields[name] = {};
+						
+						// add the properties to the schema field object
+						if (type != undefined && type != ''){
+							dataSchema.fields[name].type = type;
+						}
+						if (writeAccess != undefined && writeAccess != ''){
+							dataSchema.fields[name].writeAccess = writeAccess;
+						}
+						// required is going to be a boolean value
+						dataSchema.fields[name].required = required;
+						if (format != undefined && format != ''){
+							dataSchema.fields[name].format = format;
+						}
+						if (hash != undefined && hash != ''){
+							dataSchema.fields[name].hash = hash;
+						}
+						if (encrypt != undefined && encrypt != ''){
+							dataSchema.fields[name].encrypt = encrypt;
+						}
+					}
+				}
+				
+				// for every profile field that has been marked as removed by the user
+				for (var i=0;i<removedDSFields.length;i++){
+					// if it hasn't been added back by the user
+					if (dataSchema.fields[removedDSFields[i]] === undefined){
+					// pass it to the setSchema call as 'null' to remove it
+					dataSchema.fields[removedDSFields[i]] = null;
+				}
+			}
+
+				// used to pass data to the setSchema API call (not related to the 'data' schema object)
+				dataObj = { apiMethod: 'ds.setSchema', dataCenter: $('#dataCenter').val(), apiKey: $('#inputApiKey').val(), secret: $('#inputSecretKey').val(), format: 'json', dataSchema: JSON.stringify(dataSchema) };
+				dataObj.type = $('#inputDSType').val();
+		
+		}
+
+		//Update the schema
+		$.ajax({
+			type: "POST",
+			url: 'requestProxy.php',
+			dataType: 'json',
+			data: dataObj,
+			success: processSetSchema
+		});
+	}
+
+		// callback for setSchema result
+		function processSetSchema(response){
+			if (response.errorCode == 0){
+			//setSchema succeeded
+			alert("Schema saved.");
+		} else {
+			//Failed to set the schema
+			console.log(response);
+			alert('Error calling setSchema:\n\n' + JSON.stringify(response));
+		}
+	}
+	
+	// utility functions for properly escaping values
+	function htmlEscape(str) {
+		return String(str)
+		.replace(/&/g, '&amp;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&#39;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;');
+	}
+	
+	function htmlUnescape(value){
+		return String(value)
+		.replace(/&quot;/g, '"')
+		.replace(/&#39;/g, "'")
+		.replace(/&lt;/g, '<')
+		.replace(/&gt;/g, '>')
+		.replace(/&amp;/g, '&');
+	}
+	</script>
+</head>
+<body>
+	<!-- Form used to get schema based on API/secret -->
+	<table cellpadding="5">
+		<tr>
+			<td>
+				<h4>API Key</h4>
+			</td>
+			<td>
+				<input class="input" type="text" id="inputApiKey" value=""/>
+			</td>
+		</tr>
+		<tr>
+			<td>
+				<h4>Secret Key</h4>
+			</td>
+			<td>
+				<input class="input" type="text" id="inputSecretKey" value=""/>
+			</td>
+		</tr>
+		<tr>
+			<td>
+				<h4>Data Center</h4>
+			</td>
+			<td>
+				<select id="dataCenter">
+					<option value="us1">US</option>
+					<option value="eu1">EU</option>
+					<option value="au1">AU</option>
+				</select>
+			</td>
+		</tr>
+		<tr>
+			<tr>
+				<td>
+					<h4>DS Type (optional)</h4>
+				</td>
+				<td>
+					<input class="input" type="text" id="inputDSType" value=""/> <span id='dsTooltip' title="This is used to get and set Data Store objects. If you are unsure, leave this field blank.">?</span>
+				</td>
+			</tr>
+			<tr>
+				<td colspan='2'>
+					<button onClick="javascript:getSchema();">Get Schema</button>
+				</td>
+			</tr>
+		</table>
+		
+		<br><br>
+
+		<div id="profileSchemaTables">
+			<div class="tableTitle">
+				<h4 class="tableLabel">Profile Schema</h4>
+				<button class="newRowBtn" onClick="javascript:addSchemaRow($('#profileTemplateRowsHolder'),'profile');">New Entry</button>
+			</div>
+			<!--The actual schema table on platform should have it's own CSS classes -->
+			<div class="email_templates">
+				<!-- Profile Table -->
+				<br>
+				<div class="email_templates_holder schemaTableContainer">
+					<table cellpadding="0" cellspacing="0" class="table_blue_no_scroll">
+						<thead>
+							<tr>
+								<th class="round_left_top col_default">
+									Field
+								</th>
+								<th class="col_template">
+									Type
+								</th>
+								<th class="col_language">
+									Write Access
+								</th>
+								<th class="col_language">
+									Required
+								</th>
+								<th class="col_language">
+									Format
+								</th>
+								<th class="col_language">
+									Hash
+								</th>
+								<th class="col_language">
+									Encrypt
+								</th>
+								<th class="round_right_top col_delete">
+									Remove
+								</th>
+							</tr>
+						</thead>
+						<tbody id="profileTemplateRowsHolder">
+							<tr class="template_row" data-lang="EN">
+								<td class="col_template">
+									<span></span>
+								</td>
+								<td class="col_template">
+									<span></span>
+								</td>
+								<td class="col_template">
+									<span></span>
+								</td>
+								<td class="col_template">
+									<span></span>
+								</td>
+								<td class="col_template">
+									<span></span>
+								</td>
+								<td class="col_template">
+									<span></span>
+								</td>
+								<td class="col_delete last">
+									<span></span>
+								</td>                                       
+							</tr>
+						</tbody>
+					</table>
+				</div>
+
+				<br>
+				<br>
+				<br>
+
+				<!-- Data Table -->
+				<div class="tableTitle">
+					<h4 class="tableLabel">Data Schema</h4>
+					<button class="newRowBtn" onClick="javascript:addSchemaRow($('#dataTemplateRowsHolder'),'data');">New Entry</button>
+				</div>
+				<br>
+				<div class="email_templates_holder schemaTableContainer">
+					<table cellpadding="0" cellspacing="0" class="table_blue_no_scroll">
+						<thead>
+							<tr>
+								<th class="round_left_top col_default">
+									Field
+								</th>
+								<th class="col_template">
+									Type
+								</th>
+								<th class="col_language">
+									Write Access
+								</th>
+								<th class="col_language">
+									Required
+								</th>
+								<th class="col_language">
+									Format
+								</th>
+								<th class="col_language">
+									Hash
+								</th>
+								<th class="col_language">
+									Encrypt
+								</th>
+								<th class="round_right_top col_delete">
+									Remove
+								</th>
+							</tr>
+						</thead>
+						<tbody id="dataTemplateRowsHolder">
+							<tr class="template_row" data-lang="EN">
+								<td class="col_template">
+									<span></span>
+								</td>
+								<td class="col_template">
+									<span></span>
+								</td>
+								<td class="col_template">
+									<span></span>
+								</td>
+								<td class="col_template">
+									<span></span>
+								</td>
+								<td class="col_template">
+									<span></span>
+								</td>
+								<td class="col_template">
+									<span></span>
+								</td>
+								<td class="col_delete last">
+									<span></span>
+								</td>                                       
+							</tr>
+						</tbody>
+					</table>
+				</div>
+				<div class="saveChangesDiv">
+					<button class="newRowBtn" onClick="javascript:saveSchema('accounts');">Save Schema</button>
+				</div>
+			</div>
+		</div>
+
+		<div id='dsSchemaTables'>
+			<!-- DS Table -->
+			<div class="tableTitle">
+				<h4 class="tableLabel">Data Store Schema</h4>
+				<button class="newRowBtn" onClick="javascript:addSchemaRow($('#dsTemplateRowsHolder'),'ds');">New Entry</button>
+			</div>
+			<br>
+			<div class="email_templates_holder schemaTableContainer">
+				<table cellpadding="0" cellspacing="0" class="table_blue_no_scroll">
+					<thead>
+						<tr>
+							<th class="round_left_top col_default">
+								Field
+							</th>
+							<th class="col_template">
+								Type
+							</th>
+							<th class="col_language">
+								Write Access
+							</th>
+							<th class="col_language">
+								Required
+							</th>
+							<th class="col_language">
+								Format
+							</th>
+							<th class="col_language">
+								Hash
+							</th>
+							<th class="col_language">
+								Encrypt
+							</th>
+							<th class="round_right_top col_delete">
+								Remove
+							</th>
+						</tr>
+					</thead>
+					<tbody id="dsTemplateRowsHolder">
+						<tr class="template_row" data-lang="EN">
+							<td class="col_template">
+								<span></span>
+							</td>
+							<td class="col_template">
+								<span></span>
+							</td>
+							<td class="col_template">
+								<span></span>
+							</td>
+							<td class="col_template">
+								<span></span>
+							</td>
+							<td class="col_template">
+								<span></span>
+							</td>
+							<td class="col_template">
+								<span></span>
+							</td>
+							<td class="col_delete last">
+								<span></span>
+							</td>                                       
+						</tr>
+					</tbody>
+				</table>
+			</div>
+			<div class="saveChangesDiv">
+				<button class="newRowBtn" onClick="javascript:saveSchema('ds');">Save Schema</button>
+			</div>
+		</div>
+	</div>
+</body>
+</html>

@@ -24,6 +24,9 @@ div.block .input{
 #inputSecretKey{
 	width: 315px;
 }
+#inputUserKey {
+	width: 255px;
+}
 .schemaTable{
 	padding-top: 20px;
 	padding-left: 50px;
